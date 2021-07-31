@@ -1,0 +1,1 @@
+#define UTS_RELEASE "4.9.241-BPI-M5"

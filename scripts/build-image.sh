@@ -4,12 +4,12 @@ set -e
 
 __usage="
 Usage: build-image [OPTIONS]
-Build raspberrypi image.
+Build bananapi image.
 
 Options:
   -d, --dir  DIR             The directory for storing the image and other temporary files, which defaults to be the directory in which the script resides. If the DIR does not exist, it will be created automatically.
   -r, --repo REPO_INFO       Required! The URL/path of target repo file or list of repo's baseurls which should be a space separated list.
-  -n, --name IMAGE_NAME      The raspberrypi image name to be built.
+  -n, --name IMAGE_NAME      The bananapi image name to be built.
   -s, --spec SPEC            The image's specification: headless, xfce, ukui, dde or the file path of rpmlist. The default is headless.
   -h, --help                 Show command help.
 "
@@ -148,7 +148,7 @@ prepare(){
             for baseurl in ${repo_file// / }
             do
                 echo [repo${index}] >> ${repo_file_tmp}
-                echo name=repo${index} to build raspi image >> ${repo_file_tmp}
+                echo name=repo${index} to build bananapi image >> ${repo_file_tmp}
                 echo baseurl=${baseurl} >> ${repo_file_tmp}
                 echo enabled=1 >> ${repo_file_tmp}
                 echo gpgcheck=0 >> ${repo_file_tmp}
@@ -175,7 +175,7 @@ prepare(){
         else
             img_name=${OS_NAME}
         fi
-        img_name=${img_name}-raspi-aarch64.img
+        img_name=${img_name}-bananapi-aarch64.img
     else
         if [ "x${img_name:0-4}" != "x.img" ]; then
             img_name=${img_name}.img
@@ -259,15 +259,22 @@ make_rootfs(){
     fi
     cp ${euler_dir}/ifcfg-eth0 $rootfs_dir/etc/sysconfig/network-scripts/ifcfg-eth0
     mkdir -p ${rootfs_dir}/lib/udev/rules.d
-    if [ ! -d ${rootfs_dir}/usr/share/licenses/raspi ]; then
-        mkdir -p ${rootfs_dir}/usr/share/licenses/raspi
-    fi
     cp ${euler_dir}/*.rules ${rootfs_dir}/lib/udev/rules.d/
-    cp ${euler_dir}/LICENCE.* ${rootfs_dir}/usr/share/licenses/raspi/
     cp ${euler_dir}/chroot.sh ${rootfs_dir}/chroot.sh
     if [ ! -d ${rootfs_dir}/etc/rc.d/init.d ]; then
         mkdir -p ${rootfs_dir}/etc/rc.d/init.d
     fi
+
+    LOG "copy bananapi kernel modules and headers"
+    if [ ! -d ${rootfs_dir}/usr/lib/modules ]; then
+        mkdir -p ${rootfs_dir}/usr/lib/modules
+    fi
+    cp -a ${bsp_dir}/rootfs/lib/modules/* ${rootfs_dir}/usr/lib/modules/
+    if [ ! -d ${rootfs_dir}/usr/src ]; then
+        mkdir -p ${rootfs_dir}/usr/src
+    fi
+    cp -a ${bsp_dir}/rootfs/usr/src/* ${rootfs_dir}/usr/src/
+
     cp ${euler_dir}/extend-root.sh ${rootfs_dir}/etc/rc.d/init.d/extend-root.sh
     chmod +x ${rootfs_dir}/chroot.sh
     mount --bind /dev ${rootfs_dir}/dev
@@ -319,15 +326,13 @@ make_img(){
     echo "UUID=${fstab_array[1]}  /boot vfat    defaults,noatime 0 0" >> ${rootfs_dir}/etc/fstab
     echo "UUID=${fstab_array[2]}  swap swap    defaults,noatime 0 0" >> ${rootfs_dir}/etc/fstab
 
-    if [ -d ${rootfs_dir}/boot/grub2 ]; then
-        rm -rf ${rootfs_dir}/boot/grub2
-    fi
-    cp -a ${rootfs_dir}/boot/* ${boot_mnt}/
-    cp ${euler_dir}/config.txt ${boot_mnt}/
-    echo "console=serial0,115200 console=tty1 root=/dev/mmcblk0p3 rootfstype=ext4 elevator=deadline rootwait" > ${boot_mnt}/cmdline.txt
-
-    rm -rf ${rootfs_dir}/boot
+    LOG "copy bananpai bsp files"
+    cp -a ${bsp_dir}/boot/* ${boot_mnt}/
     rsync -avHAXq ${rootfs_dir}/* ${root_mnt}
+
+    LOG "flash bananapi uboot"
+    dd if=${bsp_dir}/uboot/u-boot.bin of=/dev/${loopX} conv=fsync,notrunc bs=512 seek=1
+
     sync
     sleep 10
     LOSETUP_D_IMG
@@ -368,9 +373,9 @@ OS_NAME=openEuler
 
 workdir=$(cd $workdir; pwd)
 if [ "x${workdir}" == "x/" ]; then
-    workdir=/raspi_output
+    workdir=/bananapi_output
 else
-    workdir=${workdir}/raspi_output
+    workdir=${workdir}/bananapi_output
 fi
 
 tmp_dir=${workdir}/tmp
@@ -380,6 +385,7 @@ rootfs_dir=${workdir}/rootfs
 root_mnt=${workdir}/root
 boot_mnt=${workdir}/boot
 euler_dir=${cur_dir}/config
+bsp_dir=${cur_dir}/bananapi
 
 CONFIG_RPM_LIST=${euler_dir}/rpmlist
 builddate=$(date +%Y%m%d)

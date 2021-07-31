@@ -1,0 +1,1 @@
+cmd_include/generated/vdso-offsets.h := 	/media/dangku/mywork/m5/base/odroid/linux/BPI-M5-bsp/toolchains/gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-nm arch/arm64/kernel/vdso/vdso.so.dbg | ./arch/arm64/kernel/vdso/gen_vdso_offsets.sh | LC_ALL=C sort > include/generated/vdso-offsets.h
